@@ -3,6 +3,7 @@ from fastapi import APIRouter, Request
 from dotenv import load_dotenv
 from handlers.executor import get_tmux_status, run_command, get_log, stop_session
 from utils.responder import send_message
+from utils.claude import ask_claude
 
 load_dotenv()
 
@@ -42,6 +43,16 @@ async def handle_stop(chat_id: str, args: str) -> None:
     await send_message(chat_id, result)
 
 
+async def handle_ask(chat_id: str, args: str) -> None:
+    question = args.strip()
+    if not question:
+        await send_message(chat_id, "❓ 질문을 입력해주세요. 예: `/ask 파이썬으로 파일 읽는 법`")
+        return
+    await send_message(chat_id, "🤔 Claude에게 물어보는 중...")
+    answer = ask_claude(question)
+    await send_message(chat_id, answer)
+
+
 async def handle_help(chat_id: str) -> None:
     text = (
         "📌 *JH Dispatch Bot 명령 목록*\n\n"
@@ -50,6 +61,7 @@ async def handle_help(chat_id: str) -> None:
         "/run [명령] — 명령 실행\n"
         "/log — 최근 로그 50줄\n"
         "/stop [세션명] — 실행 중단\n"
+        "/ask [질문] — Claude에게 질문\n"
         "/help — 명령 목록"
     )
     await send_message(chat_id, text)
@@ -61,6 +73,7 @@ COMMAND_MAP = {
     "/run": handle_run,
     "/log": handle_log,
     "/stop": handle_stop,
+    "/ask": handle_ask,
     "/help": handle_help,
 }
 
@@ -89,7 +102,7 @@ async def telegram_webhook(request: Request):
 
     handler = COMMAND_MAP.get(command)
     if handler:
-        if command in ("/run", "/stop"):
+        if command in ("/run", "/stop", "/ask"):
             await handler(chat_id, args)
         else:
             await handler(chat_id)
